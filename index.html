@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foto-skener součástek</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; background-color: #f0f4f8; color: #333; margin: 0; }
+    .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    #video { width: 100%; border: 3px solid #1a73e8; border-radius: 8px; background-color: #000; transform: scaleX(-1); margin-top: 10px; }
+    button { background-color: #1a73e8; color: white; padding: 14px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 15px; width: 100%; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    button:hover { background-color: #1557b0; }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
+    #status { margin-top: 15px; font-size: 14px; font-weight: bold; color: #444; padding: 10px; border-radius: 6px; background: #e8f0fe; }
+    .hint { font-size: 12px; color: #666; margin-top: 10px; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 style="margin-top:0; color: #1a73e8;">📸 Foto-skener součástek</h2>
+    <p style="margin-bottom:10px; font-size: 14px; color:#666;">Namiřte předmět nebo štítek na kameru notebooku</p>
+    <video id="video" autoplay playsinline></video>
+    <button id="snap" onclick="takeSnapshot()">📸 VYFOTIT A VLOŽIT DO TABULKY</button>
+    <div id="status">Spouštím webkameru...</div>
+    <p class="hint">Po úspěšném odeslání se vraťte do Google tabulky a klikněte na HLEDAT.</p>
+    <canvas id="canvas" style="display:none;"></canvas>
+  </div>
+
+  <script>
+    // Sem vložte URL webové aplikace Apps Scriptu, která končí na /exec.
+    // Příklad: https://script.google.com/macros/s/AKfycb.../exec
+    const APPS_SCRIPT_URL = "SEM_VLOZIT_URL_WEBOVE_APLIKACE_APPS_SCRIPT";
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const statusDiv = document.getElementById('status');
+    const snapButton = document.getElementById('snap');
+
+    function setStatus(message, type) {
+      const colors = {
+        info: ["#e8f0fe", "#333"],
+        ok: ["#e6f4ea", "#137333"],
+        error: ["#fce8e6", "#c5221f"]
+      };
+      const selected = colors[type] || colors.info;
+      statusDiv.style.background = selected[0];
+      statusDiv.style.color = selected[1];
+      statusDiv.innerHTML = message;
+    }
+
+    async function startCamera() {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("Prohlížeč nepodporuje přístup ke kameře.");
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false
+        });
+
+        video.srcObject = stream;
+        setStatus("✓ Kamera je připravena k focení.", "ok");
+      } catch (err) {
+        console.error("Chyba kamery:", err);
+        setStatus("<b>Chyba kamery:</b> Zkontrolujte, že je kamera povolená pro tuto stránku a není používaná v jiné aplikaci.", "error");
+        snapButton.disabled = true;
+      }
+    }
+
+    function resizeImageToDataUrl(maxWidth = 1280, quality = 0.85) {
+      const sourceWidth = video.videoWidth;
+      const sourceHeight = video.videoHeight;
+
+      if (!sourceWidth || !sourceHeight) {
+        throw new Error("Kamera ještě není připravená. Zkuste to prosím znovu.");
+      }
+
+      const scale = Math.min(1, maxWidth / sourceWidth);
+      canvas.width = Math.round(sourceWidth * scale);
+      canvas.height = Math.round(sourceHeight * scale);
+
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', quality);
+    }
+
+    async function takeSnapshot() {
+      if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("SEM_VLOZIT")) {
+        setStatus("<b>Chybí nastavení:</b> Do souboru index.html je potřeba vložit URL Apps Script webové aplikace.", "error");
+        return;
+      }
+
+      snapButton.disabled = true;
+      setStatus("Ukládám snímek a zapisuji do buňky B3...", "info");
+
+      try {
+        const dataURL = resizeImageToDataUrl();
+        const formData = new FormData();
+        formData.append("image", dataURL);
+
+        // no-cors obchází problém s CORS u Apps Scriptu.
+        // Odpověď nelze přečíst, ale POST se na Apps Script odešle.
+        await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          body: formData
+        });
+
+        setStatus("🎉 <b>ODESLÁNO!</b><br>Vraťte se do Tabulky. Fotka by měla být v buňce B3.", "ok");
+      } catch (err) {
+        console.error("Chyba při odesílání:", err);
+        setStatus("<b>Chyba:</b> " + err.message, "error");
+      } finally {
+        snapButton.disabled = false;
+      }
+    }
+
+    startCamera();
+  </script>
+</body>
+</html>
