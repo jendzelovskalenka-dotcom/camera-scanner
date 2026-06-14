@@ -96,8 +96,7 @@
 
       try {
         const dataURL = resizeImageToDataUrl();
-        const formData = new FormData();
-        formData.append("image", dataURL);
+        
 
         // no-cors obchází problém s CORS u Apps Scriptu.
         // Odpověď nelze přečíst, ale POST se na Apps Script odešle.
